@@ -1,90 +1,97 @@
-# MyVLLM
+# MinivLLM fork
 
-A custom implementation of vLLM inference engine with attention mechanism benchmarks, based on Nano-vLLM but with self-contained paged attention and flash attention implementation. 
+New Year 2026 LLM serving learning with a GB200 NVL72 cluster
 
-Benchmarking on flash attention in prefilling time and paged attention in decoding time are provided.
+A custom implementation of vLLM inference engine with attention mechanism benchmarks. Self-contained flash attention and paged attention implementations in Triton.
 
-**New to vLLM?** Check out [HowToApproachvLLM.md](HowToApproachvLLM.md) for a step-by-step implementation guide covering layers, models, paged attention, CUDA graphs, and scheduling.
+## GB200 Cluster Setup
 
-## Quickstart
+This repository includes configurations for running on NVIDIA GB200 Grace Blackwell clusters:
+
+- 4 nodes x 4 GPUs, NVL72
+- 192GB HBM3e per GPU
+
+## Quickstart (Local)
 
 ```bash
-# Install uv package manager
+# Using conda
+conda create -n minivllm python=3.11 -y
+conda activate minivllm
+pip install torch transformers xxhash triton
+
+# Install package
+pip install -e .
+
+# Run benchmarks
+python benchmark_prefilling.py
+python benchmark_decoding.py
+python main.py
+```
+
+Or with uv:
+
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Sync dependencies
 uv sync
-
-# Run the main inference engine
-uv run python main.py
-
-# Run prefilling benchmark
-uv run python benchmark_prefilling.py
-
-# Run decoding benchmark
-uv run python benchmark_decoding.py
-```
-
-## What Each Script Does
-
-```bash
 uv run python main.py
 ```
 
-This is the main inference engine demo
+## Benchmarks
 
-Demonstrates the complete LLM inference pipeline using a custom engine implementation:
-- Create a small version of Qwen3 with random initialization
-- Creates 60 chat prompts (2 base prompts repeated 30 times each)
-- Processes them through the custom LLM engine with batch processing
-- Uses paged attention and KV cache management for efficient inference
-- Generates up to 256 tokens per prompt with temperature sampling
+### Prefilling (Flash Attention)
 
-This showcases how the custom vLLM implementation handles batched text generation with memory-efficient attention.
+Compares attention implementations during prompt processing:
 
-```bash
-uv run python benchmark_prefilling.py
-```
-
-This is the pefilling phase comparison
-
-Compares three attention implementations during the **prefilling phase** (processing input prompts):
-
-1. **PyTorch Standard (O(N²) memory)**: Traditional attention that materializes full attention matrix
-2. **Naive Triton (O(N²) memory)**: GPU kernel that also uses O(N²) memory, limited by shared memory constraints (≤128 tokens)
-3. **Flash Attention (O(N) memory)**: Memory-efficient online softmax algorithm that processes attention in blocks
+| Implementation | Memory | Notes |
+|----------------|--------|-------|
+| PyTorch Standard | O(N^2) | Materializes full attention matrix |
+| Naive Triton | O(N^2) | Limited to 128 tokens by shared memory |
+| Flash Attention | O(N) | Online softmax, block-wise processing |
 
 ```bash
-uv run python benchmark_decoding.py
+python benchmark_prefilling.py
 ```
 
-This is the decoding phase comparison
+### Decoding (Paged Attention)
 
-Compares three implementations during the **decoding phase** (generating output tokens one at a time):
+Compares implementations during token generation:
 
-1. **Naive PyTorch**: Simple loop-based implementation using paged KV cache
-2. **Optimized PyTorch**: Vectorized implementation with batch gathering and masking
-3. **Triton Kernel**: Custom GPU kernel optimized for paged attention decode
+| Implementation | Description |
+|----------------|-------------|
+| Naive PyTorch | Loop-based with paged KV cache |
+| Optimized PyTorch | Vectorized batch gathering |
+| Triton Kernel | Custom paged attention kernel |
 
+```bash
+python benchmark_decoding.py
+```
 
 ## Project Structure
 
 ```
-myvllm/
-├── src/
-│   └── myvllm/           # Core vLLM implementation
-│       ├── models/       # Model implementations
-│       ├── engine/       # LLM engine logic, including sequence definition for input prompts, block management for KV cache management for GPU, scheduler for iteration-based scheduling of sequences, runner for actual implementation of running prefilling and decoding, and engine for generation API interface
-│       ├── layers/       # Components for model/
-│       ├── utils/        # context
-│       └── sampling_parameters.py
-├── main.py              # Full inference demo
-├── benchmark_prefilling.py   # Prefilling attention comparison
-└── benchmark_decoding.py     # Decoding attention comparison
+MinivLLM/
+├── src/myvllm/
+│   ├── models/          # Model implementations (Qwen3)
+│   ├── engine/          # LLM engine, scheduler, KV cache
+│   ├── layers/          # Attention, MLP, embeddings
+│   └── utils/           # Utilities
+├── main.py              # Inference demo
+├── benchmark_prefilling.py
+├── benchmark_decoding.py
+├── benchmark_large_model.py   # Large model configs
+├── run_gb200_benchmark.sh     # Slurm job script
+└── HowToApproachvLLM.md       # Implementation guide
 ```
 
 ## Requirements
 
-- Python ≥3.11, <3.12
-- CUDA-capable GPU
-- Dependencies: `transformers`, `torch`, `xxhash` (managed by uv)
+- Python 3.11
+- PyTorch with CUDA
+- Triton
+- transformers, xxhash
+
+## References
+
+- [vLLM](https://github.com/vllm-project/vllm)
+- [Flash Attention](https://arxiv.org/abs/2205.14135)
+- [Paged Attention](https://arxiv.org/abs/2309.06180)
