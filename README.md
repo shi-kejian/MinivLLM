@@ -1,6 +1,8 @@
 # MinivLLM fork
 
-New Year 2026 LLM serving learning with a GB200 NVL72 cluster
+New Year 2026 LLM serving learning with a GB200 NVL72 cluster.
+
+Forked and detached from https://github.com/Wenyueh/MinivLLM. Thank you Wenyue.
 
 A custom implementation of vLLM inference engine with attention mechanism benchmarks. Self-contained flash attention and paged attention implementations in Triton.
 
